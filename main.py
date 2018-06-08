@@ -16,14 +16,14 @@ def repeat_all_messages(message): # Название функции не игр�
 def voice_processing(message):
     file_info = bot.get_file(message.voice.file_id)
     file = requests.get('https://api.telegram.org/file/bot{0}/{1}'.format(bot, file_info.file_path))
-
+    print("Hey")
 
 #функция получения голосовго сообщения
 @bot.message_handler(content_types=['voice'])
 def voice_processing(message):
     file_info = bot.get_file(message.voice.file_id)
     file = requests.get('https://api.telegram.org/file/bot{0}/{1}'.format(token, file_info.file_path))
-
+    print("lol")
 
 if __name__ == '__main__':
     bot.polling(none_stop=True)
