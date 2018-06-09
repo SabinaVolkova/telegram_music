@@ -17,7 +17,6 @@ YANDEX_ASR_HOST = 'asr.yandex.net'
 YANDEX_ASR_PATH = '/asr_xml'
 CHUNK_SIZE = 1024 ** 2
 
-
 token = '472543405:AAHecv83IiQYVHcMe9xRIk_g4zSMgLdOFig'
 bot = telebot.TeleBot('472543405:AAHecv83IiQYVHcMe9xRIk_g4zSMgLdOFig')
 
@@ -77,11 +76,10 @@ def speech_to_text(filename=None, bytes=None, request_id=uuid.uuid4().hex, topic
     bytes = convert_to_pcm16b16000r(in_bytes=bytes)
 
     # Формирование тела запроса к Yandex API
-    url = YANDEX_ASR_PATH + '?uuid=%s&key=%s&topic=%s&lang=%s' % (
+    url = YANDEX_ASR_PATH + '?uuid=%s&key=%s&topic=%s' % (
         request_id,
         key,
-        topic,
-        lang
+        topic
     )
 
     # Считывание блока байтов
@@ -137,7 +135,6 @@ class SpeechException(Exception):
 # Создание своего исключения
 
 
-
 @bot.message_handler(content_types=["text"])
 def repeat_all_messages(message):  # Название функции не играет никакой роли, в принципе
     bot.send_message(message.chat.id, message.text)
@@ -156,13 +153,12 @@ def voice_processing(message):
         print(text)
     except SpeechException:
         # Обработка случая, когда распознавание не удалось
-        pass
+        print("Cannot detect")
     else:
-        pass
+        print("Else?")
 
 
 # Бизнес-логика
-
 
 
 if __name__ == '__main__':
