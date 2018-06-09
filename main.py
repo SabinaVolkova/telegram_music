@@ -89,7 +89,7 @@ def speech_to_text(filename=None, bytes=None, request_id=uuid.uuid4().hex, topic
     bytes = convert_to_pcm16b16000r(in_bytes=bytes)
 
     # Формирование тела запроса к Yandex API
-    url = YANDEX_ASR_PATH + '?uuid=%s&key=%s&topic=%s' % (
+    url = YANDEX_ASR_PATH + '?uuid=%s&key=%s&topic=%s&disableAntimat=true' % (
         request_id,
         key,
         topic
