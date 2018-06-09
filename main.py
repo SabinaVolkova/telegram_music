@@ -10,6 +10,7 @@ import os
 import xml.etree.ElementTree as XmlElementTree
 import httplib2
 import uuid
+from telebot import types
 
 YANDEX_API_KEY = "a1747d0f-0e79-408e-8ba4-b53eb5c56970"
 
@@ -19,6 +20,18 @@ CHUNK_SIZE = 1024 ** 2
 
 token = '472543405:AAHecv83IiQYVHcMe9xRIk_g4zSMgLdOFig'
 bot = telebot.TeleBot('472543405:AAHecv83IiQYVHcMe9xRIk_g4zSMgLdOFig')
+
+
+@bot.message_handler(commands=["actions"])
+def actions(message):
+    # Эти параметры для клавиатуры необязательны, просто для удобства
+    keyboard = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+    button_genre = types.KeyboardButton(text="По жанру", genre=True)
+    button_lang = types.KeyboardButton(text="По языку", languahe=True)
+    button_art = types.KeyboardButton(text="По исполнителю", artist=True)
+    button_name = types.KeyboardButton(text="По названию", name=True)
+    bot.keyboard.add(bot.button_genre, bot.button_lang, bot.button_art, bot.button_name)
+    bot.send_message(bot.send_message.chat.id, "По каким параметрам подобрать музыку?", reply_markup=bot.keyboard)
 
 
 def convert_to_pcm16b16000r(in_filename=None, in_bytes=None):
@@ -107,6 +120,7 @@ def speech_to_text(filename=None, bytes=None, request_id=uuid.uuid4().hex, topic
     if response.code == 200:
         response_text = response.read()
         xml = XmlElementTree.fromstring(response_text)
+        print(response_text)
 
         if int(xml.attrib['success']) == 1:
             max_confidence = - float("inf")
