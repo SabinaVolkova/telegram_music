@@ -16,6 +16,7 @@ class SpeechException(Exception):
     pass
 
 
+words = ['по жанру', 'по языку', 'по исполнителю', 'по названию']
 us_com = dict()
 YANDEX_API_KEY = "a1747d0f-0e79-408e-8ba4-b53eb5c56970"
 YANDEX_ASR_HOST = 'asr.yandex.net'
@@ -137,54 +138,71 @@ def speech_to_text(filename=None, inbytes=None, request_id=uuid.uuid4().hex, top
         response_text = response.read()
         xml = XmlElementTree.fromstring(response_text)
         try:
-            xml_parse(xml)
+            return xml_parse(xml)
         except SpeechException:
             print(response_text)
+            raise SpeechException
     else:
         raise SpeechException('Unknown error.\nCode: %s\n\n%s' % (response.code, response.read()))
 
 
-@bot.message_handler(commands=["actions"])
-def actions(m):
+@bot.message_handler(commands=["start"])
+def start(m):
+    global us_com
     keyboard = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-    keyboard.add(*[types.KeyboardButton(name) for name in ['По жанру', 'По языку', 'По исполнителю', 'По названию']])
-    # bot.send_message(m.chat.id, 'КАК', reply_markup=keyboard)
+    keyboard.add(*[types.KeyboardButton(name) for name in words])
+    # Задаём параметр по умолчанию
+    if us_com.get(m.chat.id) is None:
+        us_com[m.chat.id] = words[0]
+    cur = us_com[m.chat.id]
+
+    bot.send_message(m.chat.id, "Выберите критерий, текущий: " + cur)
 
 
 def key_handler(message):
     global us_com
-    us_com[message.chat.id] = message.text
+    text = message.text
+    if message.content_type == "voice":
+        try:
+            text = voice_processing(message)
+        except SpeechException:
+            text = ""
+
+    if message.content_type != "voice" and message.content_type != "text" or text == "":
+        bot.send_message(message.chat.id, "Не понимаю")
+        return
+
+    if text in words:
+        us_com[message.chat.id] = text
+        bot.send_message(message.chat.id, "Текущий критерий: " + text)
+    else:
+        do_request(text, message)
 
 
-def do_request(text, id):
-    pass
+def do_request(text, message):
+    bot.send_message(message.chat.id, text + " Reply")
 
 
 @bot.message_handler(content_types=["text"])
 def repeat_all_messages(message):  # Название функции не играет никакой роли, в принципе
-    # bot.send_message(message.chat.id, message.text)
-    do_request(message.text, message.chat.id)
+    key_handler(message)
 
 
 # функция получения голосовго сообщения
 @bot.message_handler(content_types=['voice'])
+def repeat_voice(message):
+    print("Get voice")
+    key_handler(message)
+
+
 def voice_processing(message):
     file_info = bot.get_file(message.voice.file_id)
     file = requests.get(
         'https://api.telegram.org/file/bot{0}/{1}'.format(token, file_info.file_path))
-    text = ""
     try:
-        # обращение к нашему новому модулю
-        text = speech_to_text(inbytes=file.content)
-        print(text)
+        return speech_to_text(inbytes=file.content)
     except SpeechException:
-        # Обработка случая, когда распознавание не удалось
-        print("Cannot detect")
-
-    do_request(text, message.chat.id)
-
-
-# Бизнес-логика
+        raise SpeechException
 
 
 if __name__ == '__main__':
