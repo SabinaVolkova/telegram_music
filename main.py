@@ -9,6 +9,10 @@ import xml.etree.ElementTree as XmlElementTree
 import httplib2
 import uuid
 from telebot import types
+import logging
+
+logger = telebot.logger
+telebot.logger.setLevel(logging.DEBUG)  # Outputs debug messages to console.
 
 
 # Создание своего исключения
@@ -88,7 +92,7 @@ def get_xml(chunks, url):
     return connection.getresponse()
 
 
-def xml_parse(xml):
+def xml_parse(xml: XmlElementTree):
     if int(xml.attrib['success']) == 1:
         max_confidence = - float("inf")
         text = ''
@@ -108,7 +112,7 @@ def xml_parse(xml):
 
 
 def speech_to_text(filename=None, inbytes=None, request_id=uuid.uuid4().hex, topic='queries',
-                   key=YANDEX_API_KEY, need_lang=False):
+                   key=YANDEX_API_KEY, mat=False, need_lang=False):
     # Если передан файл
     if filename:
         with open(filename, 'br') as file:
@@ -122,10 +126,11 @@ def speech_to_text(filename=None, inbytes=None, request_id=uuid.uuid4().hex, top
     lang = '&biometry=language'
 
     # Формирование тела запроса к Yandex API
-    url = YANDEX_ASR_PATH + '?uuid=%s&key=%s&topic=%s&disableAntimat=true%s' % (
+    url = YANDEX_ASR_PATH + '?uuid=%s&key=%s&topic=%s&disableAntimat=%s%s' % (
         request_id,
         key,
         topic,
+        "true" if mat else "false",
         lang if need_lang else ""
     )
 
@@ -156,7 +161,7 @@ def start(m):
         us_com[m.chat.id] = words[0]
     cur = us_com[m.chat.id]
 
-    bot.send_message(m.chat.id, "Выберите критерий, текущий: " + cur)
+    bot.send_message(m.chat.id, "Выберите критерий, текущий: " + cur, reply_markup=keyboard)
 
 
 def key_handler(message):
@@ -183,15 +188,10 @@ def do_request(text, message):
     bot.send_message(message.chat.id, text + " Reply")
 
 
-@bot.message_handler(content_types=["text"])
-def repeat_all_messages(message):  # Название функции не играет никакой роли, в принципе
-    key_handler(message)
-
-
-# функция получения голосовго сообщения
-@bot.message_handler(content_types=['voice'])
+# функция получения сообщения
+@bot.message_handler(content_types=['voice', 'text'])
 def repeat_voice(message):
-    print("Get voice")
+    print("Get", message.content_type)
     key_handler(message)
 
 
@@ -200,7 +200,7 @@ def voice_processing(message):
     file = requests.get(
         'https://api.telegram.org/file/bot{0}/{1}'.format(token, file_info.file_path))
     try:
-        return speech_to_text(inbytes=file.content)
+        return speech_to_text(inbytes=file.content, topic="notes", mat=False)
     except SpeechException:
         raise SpeechException
 
