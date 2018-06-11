@@ -29,6 +29,11 @@ CHUNK_SIZE = 1024 ** 2
 token = '472543405:AAHecv83IiQYVHcMe9xRIk_g4zSMgLdOFig'
 bot = telebot.TeleBot('472543405:AAHecv83IiQYVHcMe9xRIk_g4zSMgLdOFig')
 
+nameDB = 'telegram'
+nameTable = 'info'
+port = 3306
+music_path = 'music'
+
 
 def convert_to_pcm16b16000r(in_filename=None, in_bytes=None):
     with tempfile.TemporaryFile() as temp_out_file:
