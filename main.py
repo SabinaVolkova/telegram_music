@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 # import config
-import random
-
 import requests
 import telebot
 import subprocess
@@ -12,26 +10,19 @@ import httplib2
 import uuid
 from telebot import types
 
-YANDEX_API_KEY = "a1747d0f-0e79-408e-8ba4-b53eb5c56970"
 
+# Создание своего исключения
+class SpeechException(Exception):
+    pass
+
+
+us_com = dict()
+YANDEX_API_KEY = "a1747d0f-0e79-408e-8ba4-b53eb5c56970"
 YANDEX_ASR_HOST = 'asr.yandex.net'
 YANDEX_ASR_PATH = '/asr_xml'
 CHUNK_SIZE = 1024 ** 2
-
 token = '472543405:AAHecv83IiQYVHcMe9xRIk_g4zSMgLdOFig'
 bot = telebot.TeleBot('472543405:AAHecv83IiQYVHcMe9xRIk_g4zSMgLdOFig')
-
-
-@bot.message_handler(commands=["actions"])
-def actions(message):
-    # Эти параметры для клавиатуры необязательны, просто для удобства
-    keyboard = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-    button_genre = types.KeyboardButton(text="По жанру", genre=True)
-    button_lang = types.KeyboardButton(text="По языку", languahe=True)
-    button_art = types.KeyboardButton(text="По исполнителю", artist=True)
-    button_name = types.KeyboardButton(text="По названию", name=True)
-    bot.keyboard.add(bot.button_genre, bot.button_lang, bot.button_art, bot.button_name)
-    bot.send_message(bot.send_message.chat.id, "По каким параметрам подобрать музыку?", reply_markup=bot.keyboard)
 
 
 def convert_to_pcm16b16000r(in_filename=None, in_bytes=None):
@@ -65,39 +56,18 @@ def convert_to_pcm16b16000r(in_filename=None, in_bytes=None):
         return temp_out_file.read()
 
 
-def read_chunks(chunk_size, bytes):
+def read_chunks(chunk_size, b):
     while True:
-        chunk = bytes[:chunk_size]
-        bytes = bytes[chunk_size:]
+        chunk = b[:chunk_size]
+        b = b[chunk_size:]
 
         yield chunk
 
-        if not bytes:
+        if not b:
             break
 
 
-def speech_to_text(filename=None, bytes=None, request_id=uuid.uuid4().hex, topic='notes', lang='ru-RU',
-                   key=YANDEX_API_KEY):
-    # Если передан файл
-    if filename:
-        with open(filename, 'br') as file:
-            bytes = file.read()
-    if not bytes:
-        raise Exception('Neither file name nor bytes provided.')
-
-    # Конвертирование в нужный формат
-    bytes = convert_to_pcm16b16000r(in_bytes=bytes)
-
-    # Формирование тела запроса к Yandex API
-    url = YANDEX_ASR_PATH + '?uuid=%s&key=%s&topic=%s&disableAntimat=true' % (
-        request_id,
-        key,
-        topic
-    )
-
-    # Считывание блока байтов
-    chunks = read_chunks(CHUNK_SIZE, bytes)
-
+def get_xml(chunks, url):
     # Установление соединения и формирование запроса
     connection = httplib2.HTTPConnectionWithTimeout(YANDEX_ASR_HOST)
 
@@ -114,44 +84,86 @@ def speech_to_text(filename=None, bytes=None, request_id=uuid.uuid4().hex, topic
         connection.send('\r\n'.encode())
 
     connection.send('0\r\n\r\n'.encode())
-    response = connection.getresponse()
+    return connection.getresponse()
 
+
+def xml_parse(xml):
+    if int(xml.attrib['success']) == 1:
+        max_confidence = - float("inf")
+        text = ''
+
+        for child in xml:
+            if float(child.attrib['confidence']) > max_confidence:
+                text = child.text
+                max_confidence = float(child.attrib['confidence'])
+
+        if max_confidence != - float("inf"):
+            return text
+        else:
+            # Создавать собственные исключения для обработки бизнес-логики - правило хорошего тона
+            raise SpeechException('No text found.\n\nResponse:')
+    else:
+        raise SpeechException('No text found.\n\nResponse:')
+
+
+def speech_to_text(filename=None, inbytes=None, request_id=uuid.uuid4().hex, topic='queries',
+                   key=YANDEX_API_KEY, need_lang=False):
+    # Если передан файл
+    if filename:
+        with open(filename, 'br') as file:
+            inbytes = file.read()
+    if not inbytes:
+        raise Exception('Neither file name nor bytes provided.')
+
+    # Конвертирование в нужный формат
+    inbytes = convert_to_pcm16b16000r(in_bytes=inbytes)
+
+    lang = '&biometry=language'
+
+    # Формирование тела запроса к Yandex API
+    url = YANDEX_ASR_PATH + '?uuid=%s&key=%s&topic=%s&disableAntimat=true%s' % (
+        request_id,
+        key,
+        topic,
+        lang if need_lang else ""
+    )
+
+    # Считывание блока байтов
+    chunks = read_chunks(CHUNK_SIZE, inbytes)
+
+    response = get_xml(chunks, url)
     # Обработка ответа сервера
     if response.code == 200:
         response_text = response.read()
         xml = XmlElementTree.fromstring(response_text)
-        print(response_text)
-
-        if int(xml.attrib['success']) == 1:
-            max_confidence = - float("inf")
-            text = ''
-
-            for child in xml:
-                if float(child.attrib['confidence']) > max_confidence:
-                    text = child.text
-                    max_confidence = float(child.attrib['confidence'])
-
-            if max_confidence != - float("inf"):
-                return text
-            else:
-                # Создавать собственные исключения для обработки бизнес-логики - правило хорошего тона
-                raise SpeechException('No text found.\n\nResponse:\n%s' % (response_text))
-        else:
-            raise SpeechException('No text found.\n\nResponse:\n%s' % (response_text))
+        try:
+            xml_parse(xml)
+        except SpeechException:
+            print(response_text)
     else:
         raise SpeechException('Unknown error.\nCode: %s\n\n%s' % (response.code, response.read()))
 
 
-class SpeechException(Exception):
+@bot.message_handler(commands=["actions"])
+def actions(m):
+    keyboard = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+    keyboard.add(*[types.KeyboardButton(name) for name in ['По жанру', 'По языку', 'По исполнителю', 'По названию']])
+    # bot.send_message(m.chat.id, 'КАК', reply_markup=keyboard)
+
+
+def key_handler(message):
+    global us_com
+    us_com[message.chat.id] = message.text
+
+
+def do_request(text, id):
     pass
-
-
-# Создание своего исключения
 
 
 @bot.message_handler(content_types=["text"])
 def repeat_all_messages(message):  # Название функции не играет никакой роли, в принципе
-    bot.send_message(message.chat.id, message.text)
+    # bot.send_message(message.chat.id, message.text)
+    do_request(message.text, message.chat.id)
 
 
 # функция получения голосовго сообщения
@@ -160,16 +172,16 @@ def voice_processing(message):
     file_info = bot.get_file(message.voice.file_id)
     file = requests.get(
         'https://api.telegram.org/file/bot{0}/{1}'.format(token, file_info.file_path))
-
+    text = ""
     try:
         # обращение к нашему новому модулю
-        text = speech_to_text(bytes=file.content)
+        text = speech_to_text(inbytes=file.content)
         print(text)
     except SpeechException:
         # Обработка случая, когда распознавание не удалось
         print("Cannot detect")
-    else:
-        print("Else?")
+
+    do_request(text, message.chat.id)
 
 
 # Бизнес-логика
