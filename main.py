@@ -115,6 +115,7 @@ def xml_parse(xml: XmlElementTree, lang: bool):
     if int(xml.attrib['success']) == 1:
         max_confidence = - float("inf")
         text = ''
+        language = ""
 
         for child in xml:
             if float(child.attrib['confidence']) > max_confidence:
@@ -122,7 +123,7 @@ def xml_parse(xml: XmlElementTree, lang: bool):
                 max_confidence = float(child.attrib['confidence'])
 
         if max_confidence != - float("inf"):
-            return text
+            return text, language
         else:
             # Создавать собственные исключения для обработки бизнес-логики - правило хорошего тона
             raise SpeechException('No text found.\n\nResponse:')
@@ -186,9 +187,10 @@ def start(m):
 def key_handler(message):
     global us_com
     text = message.text
+    lang = ""
     if message.content_type == "voice":
         try:
-            text = voice_processing(message)
+            text, lang = voice_processing(message)
         except SpeechException:
             text = ""
 
@@ -204,7 +206,7 @@ def key_handler(message):
         else:
             us_com[message.chat.id] = text
     else:
-        do_request(text, message)
+        do_request(text, message, lang)
 
 
 # функция получения сообщения
