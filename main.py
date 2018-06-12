@@ -196,9 +196,13 @@ def key_handler(message):
         bot.send_message(message.chat.id, "Не понимаю")
         return
     print("Getted text is", text)
+
     if text in words:
-        us_com[message.chat.id] = text
         bot.send_message(message.chat.id, "Текущий критерий: " + text)
+        if text == words[0]:
+            us_com[message.chat.id] = "wait"
+        else:
+            us_com[message.chat.id] = text
     else:
         do_request(text, message)
 
@@ -216,7 +220,7 @@ def get_message(message):
 def voice_processing(message):
     file_info = bot.get_file(message.voice.file_id)
     lang = False
-    if us_com[message.chat.id] == words[0] or us_com[message.chat.id] == "wait":
+    if us_com[message.chat.id] == words[1] or us_com[message.chat.id] == "wait":
         lang = True
 
     file = requests.get(
