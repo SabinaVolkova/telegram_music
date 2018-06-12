@@ -12,11 +12,18 @@ import httplib2
 import uuid
 from telebot import types
 import logging
+import pymysql.cursors
 
 logger = telebot.logger
-telebot.logger.setLevel(logging.DEBUG)  # Outputs debug messages to console.
+telebot.logger.setLevel(logging.INFO)  # Outputs debug messages to console.
 
 words = ['по жанру', 'по языку', 'по исполнителю', 'по названию']
+db_words = ['genre', 'languag', 'author', 'name']
+if len(words) != len(db_words):
+    print("Lenght of words and db_words not equal", file=sys.stderr)
+    sys.exit(1)
+states = {words[i]: db_words[i] for i in range(len(words))}
+states["wait"] = "wait"
 us_com = dict()
 
 YANDEX_API_KEY = "a1747d0f-0e79-408e-8ba4-b53eb5c56970"
@@ -27,15 +34,14 @@ CHUNK_SIZE = 1024 ** 2
 token = '472543405:AAHecv83IiQYVHcMe9xRIk_g4zSMgLdOFig'
 bot = telebot.TeleBot('472543405:AAHecv83IiQYVHcMe9xRIk_g4zSMgLdOFig')
 
-nameDB = 'telegram'
-nameTable = 'info'
-port = 3306
-music_path = 'music'
-
+music_path = 'music/'  # for linux
+database = None
+tableDB = "info"
 ffmpeg_exec = 'ffmpeg'  # for linux
 if sys.platform.startswith("win"):
     # for windows
     ffmpeg_exec = r'bin\ffmpeg.exe'
+    music_path = r'C:\Users\Sabina\Desktop\files\\'
 
 
 # Создание своего исключения
@@ -105,7 +111,7 @@ def get_xml(chunks, url):
     return connection.getresponse()
 
 
-def xml_parse(xml: XmlElementTree):
+def xml_parse(xml: XmlElementTree, lang: bool):
     if int(xml.attrib['success']) == 1:
         max_confidence = - float("inf")
         text = ''
@@ -156,7 +162,7 @@ def speech_to_text(filename=None, inbytes=None, request_id=uuid.uuid4().hex, top
         response_text = response.read()
         xml = XmlElementTree.fromstring(response_text)
         try:
-            return xml_parse(xml)
+            return xml_parse(xml, need_lang)
         except SpeechException:
             print(response_text)
             raise SpeechException
@@ -189,7 +195,7 @@ def key_handler(message):
     if message.content_type != "voice" and message.content_type != "text" or text == "":
         bot.send_message(message.chat.id, "Не понимаю")
         return
-
+    print("Getted text is", text)
     if text in words:
         us_com[message.chat.id] = text
         bot.send_message(message.chat.id, "Текущий критерий: " + text)
@@ -197,26 +203,65 @@ def key_handler(message):
         do_request(text, message)
 
 
-def do_request(text, message):
-    bot.send_message(message.chat.id, text + " Reply")
-
-
 # функция получения сообщения
 @bot.message_handler(content_types=['voice', 'text'])
-def repeat_voice(message):
+def get_message(message):
     print("Get", message.content_type)
+    if us_com.get(message.chat.id) is None:
+        bot.send_message(message.chat.id, "Запустите бота (/start)")
+        return
     key_handler(message)
 
 
 def voice_processing(message):
     file_info = bot.get_file(message.voice.file_id)
+    lang = False
+    if us_com[message.chat.id] == words[0] or us_com[message.chat.id] == "wait":
+        lang = True
+
     file = requests.get(
         'https://api.telegram.org/file/bot{0}/{1}'.format(token, file_info.file_path))
     try:
-        return speech_to_text(inbytes=file.content, topic="notes", mat=False)
+        return speech_to_text(inbytes=file.content, topic="notes", mat=False, need_lang=lang)
     except SpeechException:
         raise SpeechException
 
 
+def connect_db(host='127.0.0.1', port=3306, user='root', password="s467",
+               db='telegram'):
+    global database
+    database = pymysql.connect(host=host, port=port, user=user, password=password,
+                               database=db, charset='utf8', cursorclass=pymysql.cursors.DictCursor)
+
+
+def do_request(text: str, message: types.Message, language=""):
+    # bot.send_message(message.chat.id, text + " Reply")
+    fmt = str(states[str(us_com[message.chat.id])]) + "=%s"
+    genre_fmt = "%s"  # AND languag=%s
+    sql = 'SELECT * FROM %s WHERE %s %s ORDER BY RAND() LIMIT 1' % (tableDB, fmt, genre_fmt)
+    ans = "Пожалуйста, повторите запрос."
+    result = None
+    try:
+        with database.cursor() as cursor:
+            cursor.execute(sql, (text, language))
+            result = cursor.fetchone()
+            print(result)
+    except pymysql.Error:
+        print("Exception in db")
+        bot.send_message(message.chat.id, ans)
+        return
+
+    if result is not None:
+        ans = result['locat']
+    try:
+        with open(music_path + ans + ".mp3", mode="rb") as audio_file:
+            bot.send_audio(message.chat.id, audio_file)
+            print("File is sended")
+    except FileNotFoundError:
+        bot.send_message(message.chat.id, ans)
+        print("Cannot found file")
+
+
 if __name__ == '__main__':
+    connect_db()
     bot.polling(none_stop=True)
