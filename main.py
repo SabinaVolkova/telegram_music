@@ -13,22 +13,17 @@ import uuid
 from telebot import types
 import logging
 
-
 logger = telebot.logger
 telebot.logger.setLevel(logging.DEBUG)  # Outputs debug messages to console.
 
-
-# Создание своего исключения
-class SpeechException(Exception):
-    pass
-
-
 words = ['по жанру', 'по языку', 'по исполнителю', 'по названию']
 us_com = dict()
+
 YANDEX_API_KEY = "a1747d0f-0e79-408e-8ba4-b53eb5c56970"
 YANDEX_ASR_HOST = 'asr.yandex.net'
 YANDEX_ASR_PATH = '/asr_xml'
 CHUNK_SIZE = 1024 ** 2
+
 token = '472543405:AAHecv83IiQYVHcMe9xRIk_g4zSMgLdOFig'
 bot = telebot.TeleBot('472543405:AAHecv83IiQYVHcMe9xRIk_g4zSMgLdOFig')
 
@@ -41,6 +36,11 @@ ffmpeg_exec = 'ffmpeg'  # for linux
 if sys.platform.startswith("win"):
     # for windows
     ffmpeg_exec = r'bin\ffmpeg.exe'
+
+
+# Создание своего исключения
+class SpeechException(Exception):
+    pass
 
 
 def convert_to_pcm16b16000r(in_filename=None, in_bytes=None):
