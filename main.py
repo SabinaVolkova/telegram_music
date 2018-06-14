@@ -184,7 +184,7 @@ def start(m):
     bot.send_message(m.chat.id, "Выберите критерий, текущий: " + cur, reply_markup=keyboard)
 
 
-def key_handler(message):
+def key_handler(message: types.Message):
     global us_com
     text = message.text
     lang = ""
