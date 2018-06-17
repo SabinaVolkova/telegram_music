@@ -253,11 +253,18 @@ def connect_db(host='127.0.0.1', port=3306, user='root', password="s467",
 def do_request(text: str, message: types.Message, language=""):
     # bot.send_message(message.chat.id, text + " Reply")
     fmt = str(states[str(us_com[message.chat.id])]) + "=%s"
-    genre_fmt = "%s"  # AND languag=%s
+    genre_fmt = "%s"  # TODO AND languag=%s
+    result = None
+    # TODO If us_com[message.chat.id] == words[0]: text = any
+    state = us_com[message.chat.id]
+    if state == words[0]:  # genre
+        genre_fmt = "AND languag=%s"  # add language
+    elif state == words[1]:  # lang
+        fmt = "%s"
+        text = ""
+        genre_fmt = "languag=%s"
     sql = 'SELECT * FROM %s WHERE %s %s ORDER BY RAND() LIMIT 1' % (tableDB, fmt, genre_fmt)
     ans = "Пожалуйста, повторите запрос."
-
-    result = None
     try:
         with database.cursor() as cursor:
             cursor.execute(sql, (text, language))
