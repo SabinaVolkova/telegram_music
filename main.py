@@ -112,17 +112,26 @@ def get_xml(chunks, url):
 
 
 def xml_parse(xml: XmlElementTree, lang: bool):
+    max_confidence = - float("inf")
+    max_biom = - float("inf")
+    text = ''
+    language = ""
+    biom = False
     if int(xml.attrib['success']) == 1:
-        max_confidence = - float("inf")
-        text = ''
-        language = ""
+        for child in xml.getiterator():
+            print(child.tag)
+            if child.tag == "class":
+                cur = float(child.attrib['confidence'])
+                if cur >= max_biom:
+                    language = child.text[-2::]
+                    max_biom = float(child.attrib['confidence'])
+            elif child.tag == "variant":
+                cur = float(child.attrib['confidence'])
+                if cur >= max_confidence:
+                    text = child.text
+                    max_confidence = float(child.attrib['confidence'])
 
-        for child in xml:
-            if float(child.attrib['confidence']) > max_confidence:
-                text = child.text
-                max_confidence = float(child.attrib['confidence'])
-
-        if max_confidence != - float("inf"):
+        if max_confidence != - float("inf") or (max_biom != -float("inf") and lang):
             return text, language
         else:
             # Создавать собственные исключения для обработки бизнес-логики - правило хорошего тона
@@ -160,7 +169,8 @@ def speech_to_text(filename=None, inbytes=None, request_id=uuid.uuid4().hex, top
     response = get_xml(chunks, url)
     # Обработка ответа сервера
     if response.code == 200:
-        response_text = response.read()
+        response_text = (response.read()).decode('utf-8')
+        print(response_text)
         xml = XmlElementTree.fromstring(response_text)
         try:
             return xml_parse(xml, need_lang)
@@ -198,13 +208,11 @@ def key_handler(message: types.Message):
         bot.send_message(message.chat.id, "Не понимаю")
         return
     print("Getted text is", text)
+    print("State", us_com[message.chat.id])
 
     if text in words:
         bot.send_message(message.chat.id, "Текущий критерий: " + text)
-        if text == words[0]:
-            us_com[message.chat.id] = "wait"
-        else:
-            us_com[message.chat.id] = text
+        us_com[message.chat.id] = text
     else:
         do_request(text, message, lang)
 
@@ -222,13 +230,15 @@ def get_message(message):
 def voice_processing(message):
     file_info = bot.get_file(message.voice.file_id)
     lang = False
-    if us_com[message.chat.id] == words[1] or us_com[message.chat.id] == "wait":
+    topic = "notes"
+    if us_com[message.chat.id] == words[1] or us_com[message.chat.id] == words[0]:
+        topic = 'queries'
         lang = True
 
     file = requests.get(
         'https://api.telegram.org/file/bot{0}/{1}'.format(token, file_info.file_path))
     try:
-        return speech_to_text(inbytes=file.content, topic="notes", mat=False, need_lang=lang)
+        return speech_to_text(inbytes=file.content, topic=topic, mat=False, need_lang=lang)
     except SpeechException:
         raise SpeechException
 
@@ -246,6 +256,7 @@ def do_request(text: str, message: types.Message, language=""):
     genre_fmt = "%s"  # AND languag=%s
     sql = 'SELECT * FROM %s WHERE %s %s ORDER BY RAND() LIMIT 1' % (tableDB, fmt, genre_fmt)
     ans = "Пожалуйста, повторите запрос."
+
     result = None
     try:
         with database.cursor() as cursor:
@@ -269,5 +280,5 @@ def do_request(text: str, message: types.Message, language=""):
 
 
 if __name__ == '__main__':
-    connect_db()
+    # connect_db()
     bot.polling(none_stop=True)
