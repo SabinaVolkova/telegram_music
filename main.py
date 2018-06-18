@@ -250,27 +250,27 @@ def connect_db(host='127.0.0.1', port=3306, user='root', password="s467",
                                database=db, charset='utf8', cursorclass=pymysql.cursors.DictCursor)
 
 
-def do_request(text: str, message: types.Message, language=""):
-    # bot.send_message(message.chat.id, text + " Reply")
+def do_request(text: str, message: types.Message, language: str):
     fmt = str(states[str(us_com[message.chat.id])]) + "=%s"
-    genre_fmt = "%s"  # TODO AND languag=%s
+    genre_fmt = " AND languag=%s"
     result = None
-    # TODO If us_com[message.chat.id] == words[0]: text = any
+    if language == "":
+        language = "languag"
+
     state = us_com[message.chat.id]
-    if state == words[0]:  # genre
-        genre_fmt = "AND languag=%s"  # add language
-    elif state == words[1]:  # lang
-        fmt = "%s"
-        text = ""
-        genre_fmt = "languag=%s"
-    sql = 'SELECT * FROM %s WHERE %s %s ORDER BY RAND() LIMIT 1' % (tableDB, fmt, genre_fmt)
+    if state == words[1]:  # lang
+        text = language
+
+    sql = 'SELECT * FROM %s WHERE %s%s ORDER BY RAND() LIMIT 1' % (tableDB, fmt, genre_fmt)
     ans = "Пожалуйста, повторите запрос."
+    print(sql)
+
     try:
         with database.cursor() as cursor:
             cursor.execute(sql, (text, language))
             result = cursor.fetchone()
             print(result)
-    except pymysql.Error:
+    except pymysql.Error as e:
         print("Exception in db")
         bot.send_message(message.chat.id, ans)
         return
@@ -287,5 +287,5 @@ def do_request(text: str, message: types.Message, language=""):
 
 
 if __name__ == '__main__':
-    # connect_db()
+    connect_db(host='192.168.1.3')
     bot.polling(none_stop=True)
