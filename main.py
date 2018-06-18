@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # import config
+import json
 import sys
 
 import requests
@@ -42,6 +43,11 @@ if sys.platform.startswith("win"):
     # for windows
     ffmpeg_exec = r'bin\ffmpeg.exe'
     music_path = r'C:\Users\Sabina\Desktop\files\\'
+
+
+def info_print(message: types.Message, text: str):
+
+    print("From:[", message.chat.first_name, message.chat.last_name, message.chat.username, message.chat.id, "]" + text, "in ", us_com.get(message.chat.id))
 
 
 # Создание своего исключения
@@ -190,7 +196,7 @@ def start(m):
     if us_com.get(m.chat.id) is None:
         us_com[m.chat.id] = words[0]
     cur = us_com[m.chat.id]
-
+    info_print(m, "Auth")
     bot.send_message(m.chat.id, "Выберите критерий, текущий: " + cur, reply_markup=keyboard)
 
 
@@ -207,12 +213,13 @@ def key_handler(message: types.Message):
     if message.content_type != "voice" and message.content_type != "text" or text == "":
         bot.send_message(message.chat.id, "Не понимаю")
         return
-    print("Getted text is", text)
-    print("State", us_com[message.chat.id])
+    info_print(message, "Getted text is " + text)
+    info_print(message, "State")
 
     if text in words:
         bot.send_message(message.chat.id, "Текущий критерий: " + text)
         us_com[message.chat.id] = text
+        info_print(message, "Update state")
     else:
         do_request(text, message, lang)
 
@@ -220,10 +227,11 @@ def key_handler(message: types.Message):
 # функция получения сообщения
 @bot.message_handler(content_types=['voice', 'text'])
 def get_message(message):
-    print("Get", message.content_type)
     if us_com.get(message.chat.id) is None:
         bot.send_message(message.chat.id, "Запустите бота (/start)")
+        info_print(message, "Not auth")
         return
+    info_print(message, "Get msg: " + message.content_type)
     key_handler(message)
 
 
@@ -263,15 +271,16 @@ def do_request(text: str, message: types.Message, language: str):
 
     sql = 'SELECT * FROM %s WHERE %s%s ORDER BY RAND() LIMIT 1' % (tableDB, fmt, genre_fmt)
     ans = "Пожалуйста, повторите запрос."
-    print(sql)
+    info_print(message, sql)
+    info_print(message, "Text: " + text + " Lang: " + language)
 
     try:
         with database.cursor() as cursor:
             cursor.execute(sql, (text, language))
             result = cursor.fetchone()
-            print(result)
+            info_print(message, json.dumps(result))
     except pymysql.Error as e:
-        print("Exception in db")
+        info_print(message, "Exception in db")
         bot.send_message(message.chat.id, ans)
         return
 
@@ -280,10 +289,10 @@ def do_request(text: str, message: types.Message, language: str):
     try:
         with open(music_path + ans + ".mp3", mode="rb") as audio_file:
             bot.send_audio(message.chat.id, audio_file)
-            print("File is sended")
+            info_print(message, "File is sended")
     except FileNotFoundError:
-        bot.send_message(message.chat.id, ans)
-        print("Cannot found file")
+        bot.send_message(message.chat.id, ans + "[file]")
+        info_print(message, "Cannot found file")
 
 
 if __name__ == '__main__':
